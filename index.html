@@ -16,9 +16,10 @@
     font:400 15px/1.5 "Inter","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
   .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
-  .top{display:flex;align-items:center;gap:10px 18px;flex:none;flex-wrap:wrap;
-    padding:12px 20px;background:var(--chrome);border-bottom:1px solid var(--line)}
-  .top > *{flex:0 0 auto}
+  .top{display:flex;flex-direction:column;flex:none;background:var(--chrome);border-bottom:1px solid var(--line)}
+  .top-row1{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap;padding:10px 20px}
+  .top-row1 > *{flex:0 0 auto}
+  .top-row2{display:flex;align-items:center;gap:10px 18px;padding:7px 20px;border-top:1px solid var(--line)}
   .brand{display:flex;align-items:baseline;gap:9px;margin-right:4px;white-space:nowrap}
   .brand h1{font-size:15.5px;font-weight:500;margin:0;white-space:nowrap}
   .brand span{font:400 12px/1 ui-monospace,Menlo,monospace;color:var(--dim);white-space:nowrap}
@@ -39,7 +40,6 @@
   .chip .sw{width:11px;height:11px;border-radius:3px;flex:none;border:1px solid rgba(20,26,34,.15)}
 
   .group{display:flex;align-items:center;gap:8px;white-space:nowrap}
-  .right{margin-left:auto}
 
   .tgl.inrow{margin-left:6px;align-self:center}
   .extras{display:flex;align-items:center;gap:13px;white-space:nowrap;
@@ -121,20 +121,22 @@
 <body>
 <div class="app">
   <div class="top">
-    <div class="brand"><h1>Room Layout</h1><span>15 × 12 ft</span></div>
-    <div class="chips" id="chips"></div>
-    <div class="group">
-      <span class="lead">Layout</span>
-      <select id="preset" aria-label="Layout"></select>
-    </div>
-    <div class="group rot-group">
+    <div class="top-row1">
+      <div class="brand"><h1>Room Layout</h1><span>15 × 12 ft</span></div>
+      <div class="chips" id="chips"></div>
       <button id="rotCCW" class="rot-btn" title="Rotate counter-clockwise" disabled>↺</button>
       <button id="rotCW" class="rot-btn" title="Rotate clockwise" disabled>↻</button>
     </div>
-    <div class="group right">
-      <button id="del" class="quiet" title="Delete this saved layout" hidden>Delete</button>
-      <button id="share">Share</button>
-      <button id="save">Save</button>
+    <div class="top-row2">
+      <div class="group">
+        <span class="lead">Layout</span>
+        <select id="preset" aria-label="Layout"></select>
+      </div>
+      <div class="group" style="margin-left:auto">
+        <button id="del" class="quiet" title="Delete this saved layout" hidden>Delete</button>
+        <button id="share">Share</button>
+        <button id="save">Save</button>
+      </div>
     </div>
   </div>
 
