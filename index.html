@@ -145,11 +145,14 @@ const DEFS = [
 ];
 const ALMIRAHS = {xl:{w:70.9,d:20.0,tall:94.5}, std:{w:53.1,d:19.9,tall:76.7}};
 const DIRS = [[0,1],[-1,0],[0,-1],[1,0]];
+// Preset x can be a number (from the left wall) or w => … (computed from the
+// current room width) so wall-hugging pieces stay flush at any room size.
+const ALM_W = ALMIRAHS.xl.w, DRS_W = 35.4;
 const PRESETS = {
-  split:    {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[105.9,120.4,180], bedside:[0,126.3,270]},
-  together: {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[73.8,0,0],        bedside:[0,126.3,270]},
-  facing:   {bed:[0,55.9,270],    almirah:[109.1,0,0], dresser:[144.6,120.4,180], bedside:[0,36,270]},
-  clear:    {bed:[40,40,0],       almirah:[40,0,0],    dresser:[120,0,0],         bedside:[0,0,270]}
+  split:    {bed:[17.7,54.3,180], almirah:[w=>w-ALM_W,0,0], dresser:[105.9,120.4,180],      bedside:[0,126.3,180]},
+  together: {bed:[17.7,54.3,180], almirah:[w=>w-ALM_W,0,0], dresser:[w=>w-ALM_W-DRS_W,0,0], bedside:[0,126.3,180]},
+  facing:   {bed:[0,55.9,270],    almirah:[w=>w-ALM_W,0,0], dresser:[w=>w-DRS_W,120.4,180],  bedside:[0,36,270]},
+  clear:    {bed:[40,40,0],       almirah:[40,0,0],         dresser:[120,0,0],               bedside:[0,0,270]}
 };
 
 let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true;
@@ -497,7 +500,11 @@ function apply(snap){
 }
 function fromPreset(p, key){
   const pieces = {};
-  DEFS.forEach(d => { const v = p[d.id]; pieces[d.id] = {x:v[0], y:v[1], rot:v[2], on:key !== 'clear'}; });
+  DEFS.forEach(d => {
+    const v = p[d.id];
+    const x = typeof v[0] === 'function' ? v[0](ROOM_W) : v[0];
+    pieces[d.id] = {x, y:v[1], rot:v[2], on:key !== 'clear'};
+  });
   return {doorY:0, xl:true, pieces};
 }
 
@@ -516,12 +523,8 @@ function setRoomSize(i){
   const [wFt, hFt] = ROOM_SIZES[i];
   ROOM_W = wFt * 12; ROOM_H = hFt * 12;
   document.getElementById('roomDim').textContent = wFt + ' × ' + hFt + ' ft';
-  DEFS.forEach(d => {
-    const s = state[d.id], m = dims(d.id);
-    s.x = Math.max(0, Math.min(ROOM_W - m.w, s.x));
-    s.y = Math.max(0, Math.min(ROOM_H - m.h, s.y));
-  });
-  doorY = Math.max(0, Math.min(ROOM_H - DOOR_W, doorY));
+  const key = presetSel.value.slice(7);
+  apply(fromPreset(PRESETS[key], key));
   resize();
 }
 roomSizeSel.addEventListener('change', () => setRoomSize(+roomSizeSel.value));
@@ -537,10 +540,7 @@ function resize(){
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
-(function(){
-  const p = PRESETS.split;
-  DEFS.forEach(d => { const v = p[d.id]; state[d.id] = {x:v[0], y:v[1], rot:v[2], on:true}; });
-})();
+apply(fromPreset(PRESETS.split, 'split'));
 resize();
 </script>
 </body>
