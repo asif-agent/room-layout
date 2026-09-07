@@ -22,7 +22,6 @@
   .top-row2{display:flex;align-items:center;gap:10px 18px;padding:7px 20px;border-top:1px solid var(--line)}
   .brand{display:flex;align-items:baseline;gap:9px;margin-right:4px;white-space:nowrap}
   .brand h1{font-size:15.5px;font-weight:500;margin:0;white-space:nowrap}
-  .brand span{font:400 12px/1 ui-monospace,Menlo,monospace;color:var(--dim);white-space:nowrap}
 
   .chips{display:flex;gap:7px;flex-wrap:wrap;flex:1 1 auto;min-width:0}
   .chip{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 8px;cursor:pointer;flex:0 0 auto;
@@ -106,7 +105,7 @@
 <div class="app">
   <div class="top">
     <div class="top-row1">
-      <div class="brand"><h1>Room Layout</h1><span id="roomDim">15 × 12 ft</span></div>
+      <div class="brand"><h1>Room Layout</h1></div>
       <div class="chips" id="chips"></div>
     </div>
     <div class="top-row2">
@@ -611,7 +610,6 @@ ROOM_SIZES.forEach(([w,h],i) => roomSizeSel.appendChild(new Option(w + ' × ' + 
 function setRoomSize(i){
   const [wFt, hFt] = ROOM_SIZES[i];
   ROOM_W = wFt * 12; ROOM_H = hFt * 12;
-  document.getElementById('roomDim').textContent = wFt + ' × ' + hFt + ' ft';
   const key = presetSel.value.slice(7);
   apply(fromPreset(PRESETS[key], key));
   resize();
