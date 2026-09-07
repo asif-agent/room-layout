@@ -96,6 +96,10 @@
   .foot kbd{font:400 11px ui-monospace,Menlo,monospace;border:1px solid var(--line);
     background:var(--panel);border-radius:4px;padding:1px 5px;color:var(--text)}
   .alert{color:var(--bad)}
+  .rot-btn{font-size:15px;padding:5px 10px;transition:background .15s,color .15s,border-color .15s}
+  .rot-btn:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
+  .rot-btn:not(:disabled):hover{background:#2159DB;border-color:#2159DB}
+  .rot-btn:disabled{color:var(--line);border-color:var(--line);cursor:not-allowed;background:var(--chrome)}
 
   .modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;
     background:rgba(20,30,48,.34)}
@@ -123,10 +127,12 @@
       <span class="lead">Layout</span>
       <select id="preset" aria-label="Layout"></select>
     </div>
+    <div class="group rot-group">
+      <button id="rotCCW" class="rot-btn" title="Rotate counter-clockwise" disabled>↺</button>
+      <button id="rotCW" class="rot-btn" title="Rotate clockwise" disabled>↻</button>
+    </div>
     <div class="group right">
       <button id="del" class="quiet" title="Delete this saved layout" hidden>Delete</button>
-      <button id="rotCCW" title="Rotate counter-clockwise" disabled>↺</button>
-      <button id="rotCW" title="Rotate clockwise" disabled>↻</button>
       <button id="share">Share</button>
       <button id="save">Save</button>
     </div>
