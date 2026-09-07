@@ -151,9 +151,12 @@ const DIRS = [[0,1],[-1,0],[0,-1],[1,0]];
 // Preset x can be a number (from the left wall) or w => … (computed from the
 // current room width) so wall-hugging pieces stay flush at any room size.
 const ALM_W = ALMIRAHS.xl.w, DRS_W = 35.4;
+// "Storage on one wall" base, shared by the chair-table preset.
+const WALL_STORAGE = {bed:[0,55.9,270], almirah:[w=>w-ALM_W,0,0], dresser:[w=>w-ALM_W-DRS_W,0,0], bedside:[0,36,270]};
 const PRESETS = {
+  chairtable: {...WALL_STORAGE, chair:[w=>w-36,72,0], table:[w=>w-36,96,0], chair2:[w=>w-36,120,180]},
   split:    {bed:[17.7,54.3,180], almirah:[w=>w-ALM_W,0,0], dresser:[105.9,120.4,180],      bedside:[0,126.3,180]},
-  together: {bed:[0,55.9,270],    almirah:[w=>w-ALM_W,0,0], dresser:[w=>w-ALM_W-DRS_W,0,0], bedside:[0,36,270]},
+  together: {...WALL_STORAGE},
   facing:   {bed:[0,55.9,270],    almirah:[w=>w-ALM_W,0,0], dresser:[w=>w-DRS_W,120.4,180],  bedside:[0,36,270]},
   clear:    {bed:[40,40,0],       almirah:[40,0,0],         dresser:[120,0,0],               bedside:[0,0,270]}
 };
@@ -582,6 +585,7 @@ function apply(snap){
     xlBox.dispatchEvent(new Event('change'));
   }
   DEFS.forEach(d => Object.assign(state[d.id], snap.pieces[d.id]));
+  document.getElementById('chairCount').value = state.chair2.on ? '2' : '1';
   selected = null;
   render();
 }
@@ -596,7 +600,7 @@ function fromPreset(p, key){
   return {doorY:0, xl:true, pieces};
 }
 
-[['facing','Bed on the door wall'],['split','Dresser on the bed wall'],
+[['chairtable','Chair table'],['facing','Bed on the door wall'],['split','Dresser on the bed wall'],
  ['together','Storage on one wall'],['clear','Empty floor']]
   .forEach(([v,t]) => presetSel.appendChild(new Option(t, 'preset:'+v)));
 
@@ -627,7 +631,7 @@ function resize(){
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
-apply(fromPreset(PRESETS.facing, 'facing'));
+apply(fromPreset(PRESETS.chairtable, 'chairtable'));
 resize();
 </script>
 </body>
