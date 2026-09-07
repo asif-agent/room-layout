@@ -70,7 +70,8 @@
   .sheet{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;
     box-shadow:0 10px 30px rgba(30,45,70,.10)}
   #room{position:relative;touch-action:none}
-  #grid{position:absolute;inset:0;pointer-events:none}
+  #grid,#walls{position:absolute;inset:0;pointer-events:none}
+  #walls{z-index:6}
 
   .piece{position:absolute;cursor:grab;touch-action:none;user-select:none;border-radius:2px}
   .piece:active{cursor:grabbing}
@@ -141,7 +142,9 @@ const DEFS = [
   {id:'bed', name:'Bed', w:88.1, d:89.7, tall:43.7, body:'#E4DACA', ink:'#3A2E22'},
   {id:'almirah', name:'Almirah', w:70.9, d:20.0, tall:94.5, body:'#EFEAE0', ink:'#3A3529'},
   {id:'dresser', name:'Dresser', w:35.4, d:23.6, tall:77.5, body:'#4A3728', ink:'#F2EDE4'},
-  {id:'bedside', name:'Bedside', w:17.7, d:17.7, tall:20.4, body:'#7A5539', ink:'#F5EFE6'}
+  {id:'bedside', name:'Bedside', w:17.7, d:17.7, tall:20.4, body:'#7A5539', ink:'#F5EFE6'},
+  {id:'chair', name:'Chair', w:24, d:24, tall:36, body:'#8A7B63', ink:'#33302A'},
+  {id:'table', name:'Table', w:24, d:24, tall:30, body:'#B99A6B', ink:'#33302A'}
 ];
 const ALMIRAHS = {xl:{w:70.9,d:20.0,tall:94.5}, std:{w:53.1,d:19.9,tall:76.7}};
 const DIRS = [[0,1],[-1,0],[0,-1],[1,0]];
@@ -158,6 +161,7 @@ const PRESETS = {
 let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true, windowsOpen = true;
 const state = {}, els = {}, chipEls = {};
 DEFS.forEach(d => state[d.id] = {x:0, y:0, rot:0, on:true});
+state.chair.on = false; state.table.on = false;   // added by hand, never part of a preset
 
 const room = document.getElementById('room');
 const grid = document.getElementById('grid');
@@ -244,6 +248,19 @@ function art(def){
     <rect x=".4" y="${D-2.6}" width="20.8" height="2.2" fill="#3B2B1F"/>
     <rect x="21.2" y="${D-2.6}" width="${W-21.6}" height="2.2" fill="#E8DFCF"/>
     <path d="M${W-7.4} ${D-1.5} H${W-3.4}" stroke="#9A917F" stroke-width=".8" stroke-linecap="round"/></svg>`;
+  if (def.id === 'chair'){
+    let s = open;
+    for (let k = 0; k < Math.round(W/24); k++){
+      const ox = k*24;
+      s += `<rect x="${ox+4}" y="7" width="16" height="14" rx="2" fill="#8A7B63" stroke="#33302A" stroke-width=".7"/>
+        <rect x="${ox+4}" y="3.5" width="16" height="4" rx="1.6" fill="#6E6049" stroke="#33302A" stroke-width=".6"/>
+        <path d="M${ox+4} 21 V23 M${ox+20} 21 V23" stroke="#33302A" stroke-width=".7"/>`;
+    }
+    return s + '</svg>';
+  }
+  if (def.id === 'table')
+    return open + `<circle cx="${W/2}" cy="${D/2}" r="${W/2-1}" fill="#B99A6B" stroke="#5E4A2E" stroke-width="1"/>
+      <circle cx="${W/2}" cy="${D/2}" r="${W/2-4.5}" fill="none" stroke="#9A7C50" stroke-width=".7"/></svg>`;
   return open + `
     <rect x=".4" y=".4" width="${W-.8}" height="${D-.8}" rx="1" fill="#7A5539" stroke="#2E2016" stroke-width=".6"/>
     <rect x="1.8" y="1.8" width="${W-3.6}" height="${D*.62}" rx=".6" fill="#8C6543"/>
@@ -265,7 +282,9 @@ DEFS.forEach(def => {
     (def.id === 'almirah' ? `<span class="extras">
       <label class="tgl"><input type="checkbox" id="xl" checked><span class="track"></span><span class="tl">XL</span></label>
       <label class="tgl"><input type="checkbox" id="swing" checked><span class="track"></span><span class="tl">Doors open</span></label>
-    </span>` : '');
+    </span>` : '') +
+    (def.id === 'chair' ? `<span class="extras"><label>Count
+      <select id="chairCount"><option value="1">1</option><option value="2">2</option></select></label></span>` : '');
   c.addEventListener('click', e => {
     if (e.target.closest('.extras')) return;
     if (e.target.classList.contains('box')) toggleOn(def.id);
@@ -298,6 +317,10 @@ doorLeaf.className = 'doorleaf';
 doorLeaf.innerHTML = '<i></i>';
 room.appendChild(doorLeaf);
 
+const walls = document.createElement('canvas');
+walls.id = 'walls';
+room.appendChild(walls);
+
 function toggleOn(id){
   const s = state[id];
   if (!s.on && !canPlace(id, s.x, s.y, s.rot)){
@@ -324,18 +347,7 @@ function drawBoard(){
   for (let i=12;i<ROOM_W;i+=12){ ctx.beginPath(); ctx.moveTo(Math.round(S(i))+.5,0); ctx.lineTo(Math.round(S(i))+.5,h); ctx.stroke(); }
   for (let j=12;j<ROOM_H;j+=12){ ctx.beginPath(); ctx.moveTo(0,Math.round(S(j))+.5); ctx.lineTo(w,Math.round(S(j))+.5); ctx.stroke(); }
 
-  ctx.strokeStyle = css('--ink'); ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(1.5,1.5); ctx.lineTo(w-1.5,1.5); ctx.lineTo(w-1.5,h-1.5); ctx.lineTo(1.5,h-1.5); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(1.5,1.5); ctx.lineTo(1.5,S(doorY));
-  ctx.moveTo(1.5,S(doorY+DOOR_W)); ctx.lineTo(1.5,h-1.5); ctx.stroke();
-
-  ctx.strokeStyle = css('--glass'); ctx.lineWidth = 5;
   const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
-  ctx.beginPath();
-  ctx.moveTo(2.5,S(wt)); ctx.lineTo(2.5,S(wt+24));
-  ctx.moveTo(w-2.5,S(9)); ctx.lineTo(w-2.5,S(135)); ctx.stroke();
 
   if (doorOpen){
     ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
@@ -349,6 +361,31 @@ function drawBoard(){
   }
 
   if (doorsOpen && state.almirah.on) drawSwing(ctx, S);
+}
+
+// Walls draw on their own canvas above the furniture, so a piece pushed
+// flush to a wall tucks behind the wall line instead of covering it.
+function drawWalls(){
+  const dpr = devicePixelRatio || 1, w = ROOM_W*scale, h = ROOM_H*scale;
+  walls.width = w*dpr; walls.height = h*dpr;
+  walls.style.width = w+'px'; walls.style.height = h+'px';
+  const ctx = walls.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  const css = n => getComputedStyle(document.body).getPropertyValue(n).trim();
+  const S = v => v*scale;
+
+  ctx.strokeStyle = css('--ink'); ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(1.5,1.5); ctx.lineTo(w-1.5,1.5); ctx.lineTo(w-1.5,h-1.5); ctx.lineTo(1.5,h-1.5); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(1.5,1.5); ctx.lineTo(1.5,S(doorY));
+  ctx.moveTo(1.5,S(doorY+DOOR_W)); ctx.lineTo(1.5,h-1.5); ctx.stroke();
+
+  ctx.strokeStyle = css('--glass'); ctx.lineWidth = 5;
+  const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
+  ctx.beginPath();
+  ctx.moveTo(2.5,S(wt)); ctx.lineTo(2.5,S(wt+24));
+  ctx.moveTo(w-2.5,S(9)); ctx.lineTo(w-2.5,S(135)); ctx.stroke();
 }
 
 // Split a wall window into ~1 ft panes and draw every pane swung open.
@@ -400,6 +437,7 @@ function drawSwing(ctx, S){
 
 function render(){
   drawBoard();
+  drawWalls();
   const live = DEFS.filter(d => state[d.id].on);
   const clash = new Set();
   for (let i=0;i<live.length;i++){
@@ -499,6 +537,16 @@ document.getElementById('xl').addEventListener('change', e => {
   render();
 });
 
+document.getElementById('chairCount').addEventListener('change', e => {
+  const def = DEFS.find(d => d.id === 'chair');
+  def.w = e.target.value === '2' ? 48 : 24;
+  els.chair.querySelector('.inner').innerHTML = art(def);
+  const s = state.chair, m = dims('chair');
+  s.x = Math.max(0, Math.min(ROOM_W-m.w, s.x));
+  s.y = Math.max(0, Math.min(ROOM_H-m.h, s.y));
+  render();
+});
+
 document.getElementById('roomdoor').addEventListener('change', e => {
   doorOpen = e.target.checked;
   render();
@@ -535,6 +583,7 @@ function fromPreset(p, key){
   const pieces = {};
   DEFS.forEach(d => {
     const v = p[d.id];
+    if (!v){ pieces[d.id] = {...state[d.id], on:false}; return; }   // chair/table: no preset ever places them
     const x = typeof v[0] === 'function' ? v[0](ROOM_W) : v[0];
     pieces[d.id] = {x, y:v[1], rot:v[2], on:key !== 'clear'};
   });
