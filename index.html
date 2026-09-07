@@ -562,7 +562,7 @@ presetSel.addEventListener('change', () => {
   const v = presetSel.value;
   delBtn.hidden = !v.startsWith('saved:');
   if (v.startsWith('saved:')) apply(saved[v.slice(6)]);
-  else apply(fromPreset(PRESETS[v.slice(7)], v.slice(7)));
+  else if (v.startsWith('preset:')) apply(fromPreset(PRESETS[v.slice(7)], v.slice(7)));
 });
 
 function encodeState(){
@@ -676,10 +676,17 @@ function setRoomSize(i){
 }
 roomSizeSel.addEventListener('change', () => setRoomSize(+roomSizeSel.value));
 
+let sharedLayout = false;
 (function(){
   if (!location.hash.startsWith('#p=')) return;
   const snap = decodeState(location.hash.slice(3));
-  if (snap) apply(snap);
+  if (snap){
+    apply(snap);
+    sharedLayout = true;
+    presetSel.insertBefore(new Option('Shared layout', 'shared'), presetSel.firstChild);
+    presetSel.value = 'shared';
+    delBtn.hidden = true;
+  }
 })();
 
 const area = document.querySelector('.canvas-area');
@@ -693,7 +700,7 @@ function resize(){
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
-(function(){
+if (!sharedLayout) (function(){
   const p = PRESETS.split;
   DEFS.forEach(d => { const v = p[d.id]; state[d.id] = {x:v[0], y:v[1], rot:v[2], on:true}; });
 })();
