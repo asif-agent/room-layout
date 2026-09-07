@@ -47,8 +47,6 @@
   .chip.off .extras{opacity:.45;pointer-events:none}
   #preset{max-width:220px}
   .lead{font-size:12.5px;color:var(--dim)}
-  .quiet{color:var(--dim)}
-  .quiet:hover{color:var(--bad);border-color:var(--bad)}
 
   button,select{font:inherit;font-size:12.5px;color:var(--text);background:var(--chrome);
     border:1px solid var(--line);border-radius:6px;padding:6px 11px;cursor:pointer}
@@ -101,21 +99,6 @@
   .rot-btn:not(:disabled):hover{background:#2159DB;border-color:#2159DB}
   .rot-btn:disabled{color:var(--line);border-color:var(--line);cursor:not-allowed;background:var(--chrome)}
 
-  .modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;
-    background:rgba(20,30,48,.34)}
-  .modal[hidden]{display:none}
-  .dlg{background:var(--chrome);border-radius:12px;padding:20px 20px 16px;width:min(360px,90vw);
-    box-shadow:0 24px 60px rgba(20,30,48,.3)}
-  .dlg h3{margin:0 0 4px;font-size:15.5px;font-weight:500}
-  .dlg p{margin:0 0 12px;font-size:13px;color:var(--dim)}
-  .dlg input{width:100%;font:inherit;font-size:14px;padding:9px 11px;border-radius:7px;
-    border:1.5px solid var(--line);background:var(--chrome);color:var(--text);margin-top:10px}
-  .dlg input:focus{outline:none;border-color:var(--accent)}
-  .err{color:var(--bad)!important;font-size:12.5px;margin:8px 0 0!important}
-  .mBtns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-  .mBtns button{padding:8px 15px}
-  .primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .primary:hover{background:#2159DB}
 </style>
 </head>
 <body>
@@ -131,32 +114,14 @@
         <select id="roomSize" aria-label="Room size"></select>
       </div>
       <div class="group">
-        <span class="lead">Layout</span>
-        <select id="preset" aria-label="Layout"></select>
-      </div>
-      <div class="group" style="margin-left:auto">
-        <button id="del" class="quiet" title="Delete this saved layout" hidden>Delete</button>
-        <button id="share">Share</button>
-        <button id="save">Save</button>
+        <span class="lead">Preset</span>
+        <select id="preset" aria-label="Preset"></select>
       </div>
     </div>
   </div>
 
   <div class="canvas-area">
     <div class="sheet"><div id="room"><canvas id="grid"></canvas></div></div>
-  </div>
-
-  <div class="modal" id="modal" hidden>
-    <div class="dlg">
-      <h3 id="mTitle">Name this layout</h3>
-      <p id="mMsg" hidden></p>
-      <input id="mInput" type="text" autocomplete="off" spellcheck="false">
-      <p class="err" id="mErr" hidden></p>
-      <div class="mBtns">
-        <button id="mCancel">Cancel</button>
-        <button id="mOk" class="primary">Save</button>
-      </div>
-    </div>
   </div>
 
   <div class="foot">
@@ -181,10 +146,10 @@ const DEFS = [
 const ALMIRAHS = {xl:{w:70.9,d:20.0,tall:94.5}, std:{w:53.1,d:19.9,tall:76.7}};
 const DIRS = [[0,1],[-1,0],[0,-1],[1,0]];
 const PRESETS = {
-  split:    {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[105.9,120.4,180], bedside:[0,126.3,0]},
-  together: {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[73.8,0,0],        bedside:[0,126.3,0]},
-  facing:   {bed:[0,55.9,270],    almirah:[109.1,0,0], dresser:[144.6,120.4,180], bedside:[0,36,0]},
-  clear:    {bed:[40,40,0],       almirah:[40,0,0],    dresser:[120,0,0],         bedside:[0,0,0]}
+  split:    {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[105.9,120.4,180], bedside:[0,126.3,270]},
+  together: {bed:[17.7,54.3,180], almirah:[109.1,0,0], dresser:[73.8,0,0],        bedside:[0,126.3,270]},
+  facing:   {bed:[0,55.9,270],    almirah:[109.1,0,0], dresser:[144.6,120.4,180], bedside:[0,36,270]},
+  clear:    {bed:[40,40,0],       almirah:[40,0,0],    dresser:[120,0,0],         bedside:[0,0,270]}
 };
 
 let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true;
@@ -513,19 +478,8 @@ document.getElementById('swing').addEventListener('change', e => {
   render();
 });
 
-const STORE = 'bedroom-layouts-v1';
-let saved = {};
-try { saved = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch(_) {}
-function persist(){ try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch(_) {} }
-
 const presetSel = document.getElementById('preset');
-const delBtn = document.getElementById('del');
 
-function snapshot(){
-  const pieces = {};
-  DEFS.forEach(d => pieces[d.id] = {...state[d.id]});
-  return {doorY, xl: document.getElementById('xl').checked, open: doorOpen, pieces};
-}
 function apply(snap){
   doorY = snap.doorY || 0;
   if (snap.open !== undefined){
@@ -547,118 +501,14 @@ function fromPreset(p, key){
   return {doorY:0, xl:true, pieces};
 }
 
-function refreshList(keep){
-  presetSel.innerHTML = '';
-  [['split','Dresser on the bed wall'],['together','Storage on one wall'],
-   ['facing','Bed on the door wall'],['clear','Empty floor']]
-    .forEach(([v,t]) => presetSel.appendChild(new Option(t, 'preset:'+v)));
-  Object.keys(saved).sort().forEach(n => presetSel.appendChild(new Option(n, 'saved:'+n)));
-  presetSel.value = keep && [...presetSel.options].some(o => o.value === keep)
-    ? keep : presetSel.options[0].value;
-  delBtn.hidden = !presetSel.value.startsWith('saved:');
-}
+[['split','Dresser on the bed wall'],['together','Storage on one wall'],
+ ['facing','Bed on the door wall'],['clear','Empty floor']]
+  .forEach(([v,t]) => presetSel.appendChild(new Option(t, 'preset:'+v)));
 
 presetSel.addEventListener('change', () => {
-  const v = presetSel.value;
-  delBtn.hidden = !v.startsWith('saved:');
-  if (v.startsWith('saved:')) apply(saved[v.slice(6)]);
-  else if (v.startsWith('preset:')) apply(fromPreset(PRESETS[v.slice(7)], v.slice(7)));
+  const key = presetSel.value.slice(7);
+  apply(fromPreset(PRESETS[key], key));
 });
-
-function encodeState(){
-  const snap = snapshot();
-  const parts = [snap.doorY, snap.xl?1:0, snap.open?1:0];
-  DEFS.forEach(d => {
-    const q = snap.pieces[d.id];
-    parts.push(Math.round(q.x*10)/10, Math.round(q.y*10)/10, q.rot, q.on?1:0);
-  });
-  return btoa(parts.join(',')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-function decodeState(str){
-  try {
-    const raw = atob(str.replace(/-/g,'+').replace(/_/g,'/'));
-    const n = raw.split(',').map(Number);
-    if (n.length !== 3 + DEFS.length*4 || n.some(isNaN)) return null;
-    const pieces = {};
-    DEFS.forEach((d,i) => {
-      const b = 3 + i*4;
-      pieces[d.id] = {x:n[b], y:n[b+1], rot:n[b+2], on:!!n[b+3]};
-    });
-    return {doorY:n[0], xl:!!n[1], open:!!n[2], pieces};
-  } catch(_) { return null; }
-}
-function shareUrl(){
-  return location.origin + location.pathname + '#p=' + encodeState();
-}
-
-const modal = document.getElementById('modal');
-const mTitle = document.getElementById('mTitle'), mMsg = document.getElementById('mMsg');
-const mInput = document.getElementById('mInput'), mErr = document.getElementById('mErr');
-const mOk = document.getElementById('mOk'), mCancel = document.getElementById('mCancel');
-let onOk = null;
-
-function openDialog(o){
-  mTitle.textContent = o.title;
-  mMsg.textContent = o.msg || ''; mMsg.hidden = !o.msg;
-  mInput.hidden = !o.withInput; mInput.value = '';
-  mErr.hidden = true;
-  mOk.textContent = o.okText || 'Save';
-  onOk = o.ok;
-  modal.hidden = false;
-  if (o.withInput) setTimeout(() => mInput.focus(), 10);
-}
-function closeDialog(){ modal.hidden = true; onOk = null; }
-mCancel.addEventListener('click', closeDialog);
-modal.addEventListener('mousedown', e => { if (e.target === modal) closeDialog(); });
-mOk.addEventListener('click', () => { if (onOk) onOk(); });
-mInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter'){ e.preventDefault(); if (onOk) onOk(); }
-  if (e.key === 'Escape') closeDialog();
-});
-
-document.getElementById('share').addEventListener('click', () => {
-  const url = shareUrl();
-  openDialog({
-    title:'Share this layout',
-    msg:'Anyone opening this link sees exactly what is on screen now.',
-    withInput:true, okText:'Copy link',
-    ok(){
-      mInput.select();
-      const done = () => { mOk.textContent = 'Copied'; setTimeout(closeDialog, 700); };
-      if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => { try{document.execCommand('copy'); done();}catch(_){ } });
-      else { try{ document.execCommand('copy'); done(); }catch(_){ } }
-    }
-  });
-  mInput.value = url;
-  setTimeout(() => mInput.select(), 20);
-});
-
-document.getElementById('save').addEventListener('click', () => {
-  openDialog({title:'Save this layout', withInput:true, okText:'Save', ok(){
-    const name = mInput.value.trim();
-    if (!name){ mErr.textContent = 'Give it a name first'; mErr.hidden = false; return; }
-    if (saved[name]){ mErr.textContent = 'That name is already used'; mErr.hidden = false; return; }
-    saved[name] = snapshot();
-    persist();
-    refreshList('saved:'+name);
-    closeDialog();
-  }});
-});
-
-delBtn.addEventListener('click', () => {
-  const name = presetSel.value.slice(6);
-  openDialog({title:'Delete this layout', msg:'"'+name+'" will be removed.', okText:'Delete', ok(){
-    delete saved[name]; persist(); refreshList('preset:split');
-
-(function(){
-  if (!location.hash.startsWith('#p=')) return;
-  const snap = decodeState(location.hash.slice(3));
-  if (snap) apply(snap);
-})(); closeDialog();
-  }});
-});
-
-refreshList('preset:split');
 
 const roomSizeSel = document.getElementById('roomSize');
 ROOM_SIZES.forEach(([w,h],i) => roomSizeSel.appendChild(new Option(w + ' × ' + h + ' ft', i)));
@@ -676,19 +526,6 @@ function setRoomSize(i){
 }
 roomSizeSel.addEventListener('change', () => setRoomSize(+roomSizeSel.value));
 
-let sharedLayout = false;
-(function(){
-  if (!location.hash.startsWith('#p=')) return;
-  const snap = decodeState(location.hash.slice(3));
-  if (snap){
-    apply(snap);
-    sharedLayout = true;
-    presetSel.insertBefore(new Option('Shared layout', 'shared'), presetSel.firstChild);
-    presetSel.value = 'shared';
-    delBtn.hidden = true;
-  }
-})();
-
 const area = document.querySelector('.canvas-area');
 function resize(){
   const availW = Math.max(area.clientWidth - 100, 240);
@@ -700,7 +537,7 @@ function resize(){
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
-if (!sharedLayout) (function(){
+(function(){
   const p = PRESETS.split;
   DEFS.forEach(d => { const v = p[d.id]; state[d.id] = {x:v[0], y:v[1], rot:v[2], on:true}; });
 })();
