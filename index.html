@@ -250,9 +250,9 @@ function art(def){
     <rect x="21.2" y="${D-2.6}" width="${W-21.6}" height="2.2" fill="#E8DFCF"/>
     <path d="M${W-7.4} ${D-1.5} H${W-3.4}" stroke="#9A917F" stroke-width=".8" stroke-linecap="round"/></svg>`;
   if (def.id === 'chair' || def.id === 'chair2')
-    return open + `<rect x="4" y="7" width="16" height="14" rx="2" fill="#8A7B63" stroke="#33302A" stroke-width=".7"/>
-      <rect x="4" y="3.5" width="16" height="4" rx="1.6" fill="#6E6049" stroke="#33302A" stroke-width=".6"/>
-      <path d="M4 21 V23 M20 21 V23" stroke="#33302A" stroke-width=".7"/></svg>`;
+    return open + `<rect x="1.4" y="6" width="21.2" height="16.6" rx="3" fill="#8A7B63" stroke="#33302A" stroke-width=".9"/>
+      <rect x="1.4" y="1.4" width="21.2" height="6" rx="2.4" fill="#6E6049" stroke="#33302A" stroke-width=".8"/>
+      <rect x="4" y="9" width="16" height="11" rx="2" fill="#7C6E58"/></svg>`;
   if (def.id === 'table')
     return open + `<circle cx="${W/2}" cy="${D/2}" r="${W/2-1}" fill="#B99A6B" stroke="#5E4A2E" stroke-width="1"/>
       <circle cx="${W/2}" cy="${D/2}" r="${W/2-4.5}" fill="none" stroke="#9A7C50" stroke-width=".7"/></svg>`;
@@ -575,6 +575,8 @@ function apply(snap){
     doorOpen = !!snap.open;
     document.getElementById('roomdoor').checked = doorOpen;
   }
+  windowsOpen = false;   // presets start with the windows closed
+  document.getElementById('roomwindow').checked = false;
   const xlBox = document.getElementById('xl');
   if (xlBox.checked !== !!snap.xl){
     xlBox.checked = !!snap.xl;
