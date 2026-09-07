@@ -155,7 +155,7 @@ const PRESETS = {
   clear:    {bed:[40,40,0],       almirah:[40,0,0],         dresser:[120,0,0],               bedside:[0,0,270]}
 };
 
-let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true;
+let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true, windowsOpen = true;
 const state = {}, els = {}, chipEls = {};
 DEFS.forEach(d => state[d.id] = {x:0, y:0, rot:0, on:true});
 
@@ -280,10 +280,16 @@ doorTgl.className = 'tgl inrow';
 doorTgl.innerHTML = '<input type="checkbox" id="roomdoor" checked>'
   + '<span class="track"></span><span class="tl">Door open</span>';
 
+const windowTgl = document.createElement('label');
+windowTgl.className = 'tgl inrow';
+windowTgl.innerHTML = '<input type="checkbox" id="roomwindow" checked>'
+  + '<span class="track"></span><span class="tl">Window open</span>';
+
 const endGroup = document.createElement('div');
 endGroup.className = 'group';
 endGroup.innerHTML = '<button id="rotCCW" class="rot-btn" title="Rotate counter-clockwise" disabled>↺</button>'
   + '<button id="rotCW" class="rot-btn" title="Rotate clockwise" disabled>↻</button>';
+endGroup.prepend(windowTgl);
 endGroup.prepend(doorTgl);
 chipsEl.appendChild(endGroup);
 
@@ -335,6 +341,18 @@ function drawBoard(){
     ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.arc(1.5,S(doorY),S(DOOR_W),0,Math.PI/2); ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  if (windowsOpen){
+    ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(2.5,S(wt),S(12),0,Math.PI/2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(w-2.5,S(9),S(12),Math.PI/2,Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#2A3140'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(2.5,S(wt)); ctx.lineTo(2.5+S(12),S(wt));
+    ctx.moveTo(w-2.5,S(9)); ctx.lineTo(w-2.5-S(12),S(9));
+    ctx.stroke(); ctx.lineCap = 'butt';
   }
 
   if (doorsOpen && state.almirah.on) drawSwing(ctx, S);
@@ -476,6 +494,11 @@ document.getElementById('roomdoor').addEventListener('change', e => {
   render();
 });
 
+document.getElementById('roomwindow').addEventListener('change', e => {
+  windowsOpen = e.target.checked;
+  render();
+});
+
 document.getElementById('swing').addEventListener('change', e => {
   doorsOpen = e.target.checked;
   render();
@@ -508,8 +531,8 @@ function fromPreset(p, key){
   return {doorY:0, xl:true, pieces};
 }
 
-[['split','Dresser on the bed wall'],['together','Storage on one wall'],
- ['facing','Bed on the door wall'],['clear','Empty floor']]
+[['facing','Bed on the door wall'],['split','Dresser on the bed wall'],
+ ['together','Storage on one wall'],['clear','Empty floor']]
   .forEach(([v,t]) => presetSel.appendChild(new Option(t, 'preset:'+v)));
 
 presetSel.addEventListener('change', () => {
@@ -540,7 +563,7 @@ function resize(){
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
-apply(fromPreset(PRESETS.split, 'split'));
+apply(fromPreset(PRESETS.facing, 'facing'));
 resize();
 </script>
 </body>
