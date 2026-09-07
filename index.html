@@ -144,6 +144,7 @@ const DEFS = [
   {id:'dresser', name:'Dresser', w:35.4, d:23.6, tall:77.5, body:'#4A3728', ink:'#F2EDE4'},
   {id:'bedside', name:'Bedside', w:17.7, d:17.7, tall:20.4, body:'#7A5539', ink:'#F5EFE6'},
   {id:'chair', name:'Chair', w:24, d:24, tall:36, body:'#8A7B63', ink:'#33302A'},
+  {id:'chair2', name:'Chair', w:24, d:24, tall:36, body:'#8A7B63', ink:'#33302A', chip:false},
   {id:'table', name:'Table', w:24, d:24, tall:30, body:'#B99A6B', ink:'#33302A'}
 ];
 const ALMIRAHS = {xl:{w:70.9,d:20.0,tall:94.5}, std:{w:53.1,d:19.9,tall:76.7}};
@@ -161,7 +162,7 @@ const PRESETS = {
 let scale = 1, doorY = 0, selected = null, doorsOpen = true, doorOpen = true, windowsOpen = true;
 const state = {}, els = {}, chipEls = {};
 DEFS.forEach(d => state[d.id] = {x:0, y:0, rot:0, on:true});
-state.chair.on = false; state.table.on = false;   // added by hand, never part of a preset
+state.chair.on = false; state.chair2.on = false; state.table.on = false;   // added by hand, never part of a preset
 
 const room = document.getElementById('room');
 const grid = document.getElementById('grid');
@@ -248,16 +249,10 @@ function art(def){
     <rect x=".4" y="${D-2.6}" width="20.8" height="2.2" fill="#3B2B1F"/>
     <rect x="21.2" y="${D-2.6}" width="${W-21.6}" height="2.2" fill="#E8DFCF"/>
     <path d="M${W-7.4} ${D-1.5} H${W-3.4}" stroke="#9A917F" stroke-width=".8" stroke-linecap="round"/></svg>`;
-  if (def.id === 'chair'){
-    let s = open;
-    for (let k = 0; k < Math.round(W/24); k++){
-      const ox = k*24;
-      s += `<rect x="${ox+4}" y="7" width="16" height="14" rx="2" fill="#8A7B63" stroke="#33302A" stroke-width=".7"/>
-        <rect x="${ox+4}" y="3.5" width="16" height="4" rx="1.6" fill="#6E6049" stroke="#33302A" stroke-width=".6"/>
-        <path d="M${ox+4} 21 V23 M${ox+20} 21 V23" stroke="#33302A" stroke-width=".7"/>`;
-    }
-    return s + '</svg>';
-  }
+  if (def.id === 'chair' || def.id === 'chair2')
+    return open + `<rect x="4" y="7" width="16" height="14" rx="2" fill="#8A7B63" stroke="#33302A" stroke-width=".7"/>
+      <rect x="4" y="3.5" width="16" height="4" rx="1.6" fill="#6E6049" stroke="#33302A" stroke-width=".6"/>
+      <path d="M4 21 V23 M20 21 V23" stroke="#33302A" stroke-width=".7"/></svg>`;
   if (def.id === 'table')
     return open + `<circle cx="${W/2}" cy="${D/2}" r="${W/2-1}" fill="#B99A6B" stroke="#5E4A2E" stroke-width="1"/>
       <circle cx="${W/2}" cy="${D/2}" r="${W/2-4.5}" fill="none" stroke="#9A7C50" stroke-width=".7"/></svg>`;
@@ -291,7 +286,8 @@ DEFS.forEach(def => {
     else if (state[def.id].on){ selected = def.id; render(); }
     else toggleOn(def.id);
   });
-  chipsEl.appendChild(c); chipEls[def.id] = c;
+  chipEls[def.id] = c;
+  if (def.chip !== false) chipsEl.appendChild(c);
 });
 
 const doorTgl = document.createElement('label');
@@ -331,7 +327,23 @@ function toggleOn(id){
   s.on = !s.on;
   if (!s.on && selected === id) selected = null;
   if (s.on) selected = id;
+  if (id === 'chair') syncChair2();
   render();
+}
+
+// The Chair "Count" dropdown adds/removes a second, independent chair piece.
+function syncChair2(){
+  const want = state.chair.on && document.getElementById('chairCount').value === '2';
+  const c = state.chair, c2 = state.chair2;
+  if (want && !c2.on){
+    c2.rot = c.rot;
+    const near = [[c.x+26,c.y],[c.x-26,c.y],[c.x,c.y+26],[c.x,c.y-26]]
+      .find(([x,y]) => canPlace('chair2', x, y, c2.rot));
+    if (near){ c2.x = near[0]; c2.y = near[1]; }
+    else { const sp = findSpot('chair2', c2.rot); if (sp){ c2.x = sp.x; c2.y = sp.y; } }
+  }
+  c2.on = want;
+  if (!c2.on && selected === 'chair2') selected = null;
 }
 
 function drawBoard(){
@@ -347,17 +359,10 @@ function drawBoard(){
   for (let i=12;i<ROOM_W;i+=12){ ctx.beginPath(); ctx.moveTo(Math.round(S(i))+.5,0); ctx.lineTo(Math.round(S(i))+.5,h); ctx.stroke(); }
   for (let j=12;j<ROOM_H;j+=12){ ctx.beginPath(); ctx.moveTo(0,Math.round(S(j))+.5); ctx.lineTo(w,Math.round(S(j))+.5); ctx.stroke(); }
 
-  const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
-
   if (doorOpen){
     ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.arc(1.5,S(doorY),S(DOOR_W),0,Math.PI/2); ctx.stroke();
     ctx.setLineDash([]);
-  }
-
-  if (windowsOpen){
-    windowVents(ctx, S, 2.5, wt, 24, 1);       // left wall window
-    windowVents(ctx, S, w-2.5, 9, 126, -1);    // right wall window
   }
 
   if (doorsOpen && state.almirah.on) drawSwing(ctx, S);
@@ -386,6 +391,11 @@ function drawWalls(){
   ctx.beginPath();
   ctx.moveTo(2.5,S(wt)); ctx.lineTo(2.5,S(wt+24));
   ctx.moveTo(w-2.5,S(9)); ctx.lineTo(w-2.5,S(135)); ctx.stroke();
+
+  if (windowsOpen){
+    windowVents(ctx, S, 2.5, wt, 24, 1);       // left wall window
+    windowVents(ctx, S, w-2.5, 9, 126, -1);    // right wall window
+  }
 }
 
 // Split a wall window into ~1 ft panes and draw every pane swung open.
@@ -537,13 +547,8 @@ document.getElementById('xl').addEventListener('change', e => {
   render();
 });
 
-document.getElementById('chairCount').addEventListener('change', e => {
-  const def = DEFS.find(d => d.id === 'chair');
-  def.w = e.target.value === '2' ? 48 : 24;
-  els.chair.querySelector('.inner').innerHTML = art(def);
-  const s = state.chair, m = dims('chair');
-  s.x = Math.max(0, Math.min(ROOM_W-m.w, s.x));
-  s.y = Math.max(0, Math.min(ROOM_H-m.h, s.y));
+document.getElementById('chairCount').addEventListener('change', () => {
+  syncChair2();
   render();
 });
 
