@@ -122,12 +122,14 @@
 <div class="app">
   <div class="top">
     <div class="top-row1">
-      <div class="brand"><h1>Room Layout</h1><span>15 × 12 ft</span></div>
+      <div class="brand"><h1>Room Layout</h1><span id="roomDim">15 × 12 ft</span></div>
       <div class="chips" id="chips"></div>
-      <button id="rotCCW" class="rot-btn" title="Rotate counter-clockwise" disabled>↺</button>
-      <button id="rotCW" class="rot-btn" title="Rotate clockwise" disabled>↻</button>
     </div>
     <div class="top-row2">
+      <div class="group">
+        <span class="lead">Room</span>
+        <select id="roomSize" aria-label="Room size"></select>
+      </div>
       <div class="group">
         <span class="lead">Layout</span>
         <select id="preset" aria-label="Layout"></select>
@@ -166,7 +168,9 @@
 </div>
 
 <script>
-const ROOM_W = 180, ROOM_H = 144, DOOR_W = 36;
+let ROOM_W = 180, ROOM_H = 144;
+const DOOR_W = 36;
+const ROOM_SIZES = [[15,12],[14,12]];
 
 const DEFS = [
   {id:'bed', name:'Bed', w:88.1, d:89.7, tall:43.7, body:'#E4DACA', ink:'#3A2E22'},
@@ -307,7 +311,13 @@ const doorTgl = document.createElement('label');
 doorTgl.className = 'tgl inrow';
 doorTgl.innerHTML = '<input type="checkbox" id="roomdoor" checked>'
   + '<span class="track"></span><span class="tl">Door open</span>';
-chipsEl.appendChild(doorTgl);
+
+const endGroup = document.createElement('div');
+endGroup.className = 'group';
+endGroup.innerHTML = '<button id="rotCCW" class="rot-btn" title="Rotate counter-clockwise" disabled>↺</button>'
+  + '<button id="rotCW" class="rot-btn" title="Rotate clockwise" disabled>↻</button>';
+endGroup.prepend(doorTgl);
+chipsEl.appendChild(endGroup);
 
 const doorLeaf = document.createElement('div');
 doorLeaf.className = 'doorleaf';
@@ -649,6 +659,22 @@ delBtn.addEventListener('click', () => {
 });
 
 refreshList('preset:split');
+
+const roomSizeSel = document.getElementById('roomSize');
+ROOM_SIZES.forEach(([w,h],i) => roomSizeSel.appendChild(new Option(w + ' × ' + h + ' ft', i)));
+function setRoomSize(i){
+  const [wFt, hFt] = ROOM_SIZES[i];
+  ROOM_W = wFt * 12; ROOM_H = hFt * 12;
+  document.getElementById('roomDim').textContent = wFt + ' × ' + hFt + ' ft';
+  DEFS.forEach(d => {
+    const s = state[d.id], m = dims(d.id);
+    s.x = Math.max(0, Math.min(ROOM_W - m.w, s.x));
+    s.y = Math.max(0, Math.min(ROOM_H - m.h, s.y));
+  });
+  doorY = Math.max(0, Math.min(ROOM_H - DOOR_W, doorY));
+  resize();
+}
+roomSizeSel.addEventListener('change', () => setRoomSize(+roomSizeSel.value));
 
 (function(){
   if (!location.hash.startsWith('#p=')) return;
