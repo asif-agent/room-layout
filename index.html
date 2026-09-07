@@ -125,6 +125,8 @@
     </div>
     <div class="group right">
       <button id="del" class="quiet" title="Delete this saved layout" hidden>Delete</button>
+      <button id="rotCCW" title="Rotate counter-clockwise" disabled>↺</button>
+      <button id="rotCW" title="Rotate clockwise" disabled>↻</button>
       <button id="share">Share</button>
       <button id="save">Save</button>
     </div>
@@ -220,8 +222,8 @@ function findSpot(id, rot){
       if (canPlace(id, x, y, rot)) return {x, y};
   return null;
 }
-function rotate(id){
-  const s = state[id], nr = (s.rot+90)%360;
+function rotate(id, dir=1){
+  const s = state[id], nr = (s.rot + dir*90 + 360)%360;
   if (canPlace(id, s.x, s.y, nr)){ s.rot = nr; render(); return; }
   for (let d=1; d<=24; d++)
     for (const [ox,oy] of [[-d,0],[d,0],[0,-d],[0,d]])
@@ -420,6 +422,9 @@ function render(){
   doorLeaf.style.height = '3px';
   doorLeaf.style.transform = `rotate(${doorOpen ? 0 : 90}deg)`;
   warnEl.textContent = clash.size ? 'That spot is taken' : '';
+  const hasSelected = selected && state[selected].on;
+  document.getElementById('rotCCW').disabled = !hasSelected;
+  document.getElementById('rotCW').disabled = !hasSelected;
 }
 
 let drag = null;
@@ -466,6 +471,9 @@ addEventListener('keydown', e => {
   else return;
   e.preventDefault(); render();
 });
+
+document.getElementById('rotCW').addEventListener('click', () => { if (selected) rotate(selected, 1); });
+document.getElementById('rotCCW').addEventListener('click', () => { if (selected) rotate(selected, -1); });
 
 document.getElementById('xl').addEventListener('change', e => {
   const def = DEFS.find(d => d.id === 'almirah');
