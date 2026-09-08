@@ -99,6 +99,17 @@
   .rot-btn:not(:disabled):hover{background:#2159DB;border-color:#2159DB}
   .rot-btn:disabled{color:var(--line);border-color:var(--line);cursor:not-allowed;background:var(--chrome)}
 
+  #view3d{position:absolute;inset:0;z-index:15;display:none;background:#e9edf3;
+    border-radius:2px;cursor:grab;touch-action:none}
+  #view3d.on{display:block}
+  #view3d:active{cursor:grabbing}
+  .povs{position:absolute;inset:0;z-index:20;pointer-events:none}
+  .pov{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;
+    border:1.5px solid var(--line);background:var(--chrome);color:var(--dim);
+    display:grid;place-items:center;font-size:12px;cursor:pointer;pointer-events:auto;
+    box-shadow:0 1px 4px rgba(20,30,50,.20);transition:transform .1s,background .1s}
+  .pov:hover{transform:scale(1.15)}
+  .pov.on{background:var(--accent);border-color:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -132,9 +143,11 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 let ROOM_W = 180, ROOM_H = 144;
 const DOOR_W = 36;
+const DOOR_H = 84, WIN_SILL = 36, WIN_HEAD = 84, CEIL_H = 120, EYE_H = 66;
 const ROOM_SIZES = [[15,12],[14,12]];
 
 const DEFS = [
@@ -389,31 +402,48 @@ function drawWalls(){
   ctx.moveTo(1.5,S(doorY+DOOR_W)); ctx.lineTo(1.5,h-1.5); ctx.stroke();
 
   ctx.strokeStyle = css('--glass'); ctx.lineWidth = 5;
-  const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
-  ctx.beginPath();
-  ctx.moveTo(2.5,S(wt)); ctx.lineTo(2.5,S(wt+24));
-  ctx.moveTo(w-2.5,S(9)); ctx.lineTo(w-2.5,S(135)); ctx.stroke();
-
-  if (windowsOpen){
-    windowVents(ctx, S, 2.5, wt, 24, 1);       // left wall window
-    windowVents(ctx, S, w-2.5, 9, 126, -1);    // right wall window
+  for (const s of windowSpecs()){
+    const wx = s.wall === 'L' ? 2.5 : w-2.5;
+    ctx.beginPath(); ctx.moveTo(wx,S(s.a0)); ctx.lineTo(wx,S(s.a1)); ctx.stroke();
   }
+  if (windowsOpen) for (const s of windowSpecs())
+    windowVents(ctx, S, s.wall === 'L' ? 2.5 : w-2.5, s.a0, s.a1-s.a0, s.wall === 'L' ? 1 : -1, s.pairs);
 }
 
-// Split a wall window into ~1 ft panes and draw every pane swung open.
-// dir: +1 swings toward +x (left wall), -1 toward -x (right wall).
-function windowVents(ctx, S, wallX, y0, len, dir){
-  const n = Math.max(1, Math.round(len/12)), p = len/n;
-  for (let i=0;i<n;i++){
-    const hy = y0 + i*p;
-    ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+// A window is a row of hinged pairs. Each pair is two sashes that swing
+// inward to meet at the pair's centre; a 2" wooden post sits between pairs.
+const WIN_POST = 2;
+function windowSpecs(){
+  const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
+  return [
+    {wall:'L', a0:wt, a1:wt+24, pairs:1},
+    {wall:'R', a0:9,  a1:135,   pairs:4},
+  ];
+}
+function windowVents(ctx, S, wallX, y0, len, dir, pairs){
+  const pairW = (len - (pairs-1)*WIN_POST)/pairs, sashW = pairW/2;
+  const arc = (cx,cy,r,a,b) => {
+    let d=b-a; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
     ctx.beginPath();
-    ctx.arc(wallX, S(hy), S(p), dir>0 ? 0 : Math.PI/2, dir>0 ? Math.PI/2 : Math.PI);
-    ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#2A3140'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(wallX, S(hy)); ctx.lineTo(wallX + dir*S(p), S(hy));
-    ctx.stroke(); ctx.lineCap = 'butt';
+    for (let k=0;k<=12;k++){ const t=a+d*k/12; (k?ctx.lineTo:ctx.moveTo).call(ctx, cx+Math.cos(t)*r, cy+Math.sin(t)*r); }
+    ctx.stroke();
+  };
+  for (let i=0;i<pairs;i++){
+    const p0 = y0 + i*(pairW+WIN_POST);
+    for (const [hy,closed] of [[p0, Math.PI/2],[p0+pairW, -Math.PI/2]]){
+      const open = dir>0 ? 0 : Math.PI;
+      ctx.strokeStyle = '#98A2B2'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+      arc(wallX, S(hy), S(sashW), open, closed);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#7C5A34'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wallX, S(hy)); ctx.lineTo(wallX + Math.cos(open)*S(sashW), S(hy) + Math.sin(open)*S(sashW));
+      ctx.stroke(); ctx.lineCap = 'butt';
+    }
+    if (i < pairs-1){
+      ctx.fillStyle = '#8A6A3F';
+      ctx.fillRect(wallX - (dir>0?0:3), S(p0+pairW) - 1, 3, S(WIN_POST) + 2);
+    }
   }
 }
 
@@ -489,6 +519,7 @@ function render(){
   const hasSelected = selected && state[selected].on;
   document.getElementById('rotCCW').disabled = !hasSelected;
   document.getElementById('rotCW').disabled = !hasSelected;
+  V3.refresh();
 }
 
 let drag = null;
@@ -620,6 +651,226 @@ function setRoomSize(i){
 }
 roomSizeSel.addEventListener('change', () => setRoomSize(+roomSizeSel.value));
 
+/* ---------- 3D standpoint view ---------- */
+const V3 = (() => {
+  const T = window.THREE;
+  const canvas = document.createElement('canvas'); canvas.id = 'view3d';
+  const povLayer = document.createElement('div'); povLayer.className = 'povs';
+  room.appendChild(canvas); room.appendChild(povLayer);
+
+  // 9 standpoints: [label, plan x, plan y] — marker on the wall, camera inset.
+  function points(){
+    const W = ROOM_W, H = ROOM_H, e = 28, c = 38;
+    return [
+      ['Door', 0, doorY + DOOR_W/2,  e, doorY + DOOR_W/2],
+      ['Left wall', 0, H/2,          e, H/2],
+      ['Right wall', W, H/2,         W-e, H/2],
+      ['Top wall', W/2, 0,           W/2, e],
+      ['Bottom wall', W/2, H,        W/2, H-e],
+      ['Top-left corner', 0, 0,      c, c],
+      ['Top-right corner', W, 0,     W-c, c],
+      ['Bottom-left corner', 0, H,   c, H-c],
+      ['Bottom-right corner', W, H,  W-c, H-c],
+    ].map(([label,mx,my,cx,cy]) => ({label,mx,my,cx,cy}));
+  }
+
+  const markers = points().map((p,i) => {
+    const b = document.createElement('button');
+    b.className = 'pov'; b.type = 'button'; b.textContent = '◉';
+    b.title = 'Stand at: ' + p.label;
+    b.addEventListener('click', () => select(i));
+    povLayer.appendChild(b);
+    return b;
+  });
+
+  let ok = !!T, ready = false, active = -1;
+  let renderer, scene, camera, roomGrp, furnGrp, yaw = 0, pitch = 0, dragging = null;
+  const WOOD = T && new T.MeshLambertMaterial({color:0x9A6B3B});
+  const WALLM = T && new T.MeshLambertMaterial({color:0xE3E5EA});
+  const GLASS = T && new T.MeshLambertMaterial({color:0xBBD4DD, transparent:true, opacity:0.28});
+
+  function initGL(){
+    renderer = new T.WebGLRenderer({canvas, antialias:true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.setClearColor(0xE9EDF3);
+    scene = new T.Scene();
+    camera = new T.PerspectiveCamera(66, 1, 1, 3000);
+    camera.rotation.order = 'YXZ';
+    scene.add(new T.HemisphereLight(0xffffff, 0x9aa2ae, 0.62));
+    const dl = new T.DirectionalLight(0xffffff, 0.42);
+    dl.position.set(ROOM_W*0.3, 300, ROOM_H*0.35); dl.castShadow = true;
+    dl.shadow.mapSize.set(1024,1024);
+    Object.assign(dl.shadow.camera, {left:-ROOM_W, right:ROOM_W, top:ROOM_H, bottom:-ROOM_H, near:1, far:900});
+    dl.shadow.camera.updateProjectionMatrix();
+    scene.add(dl);
+    roomGrp = new T.Group(); furnGrp = new T.Group();
+    scene.add(roomGrp); scene.add(furnGrp);
+
+    canvas.addEventListener('pointerdown', e => { dragging = {x:e.clientX, y:e.clientY}; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      yaw   -= (e.clientX - dragging.x) * 0.005;
+      pitch -= (e.clientY - dragging.y) * 0.005;
+      pitch = Math.max(-1.45, Math.min(1.45, pitch));
+      dragging = {x:e.clientX, y:e.clientY};
+      camera.rotation.set(pitch, yaw, 0); draw();
+    });
+    const stop = () => dragging = null;
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
+    ready = true;
+  }
+
+  function box(x0,x1,y0,y1,z0,z1,mat){
+    const m = new T.Mesh(new T.BoxGeometry(x1-x0, y1-y0, z1-z0), mat);
+    m.position.set((x0+x1)/2, (y0+y1)/2, (z0+z1)/2);
+    m.castShadow = true; m.receiveShadow = true; roomGrp.add(m);
+    return m;
+  }
+  // wall along the Z axis (left/right walls). face = inner-face x; s = +1 solid toward -x, -1 toward +x
+  function wallZ(face, s, openings){
+    const th = 4, x0 = s>0 ? face-th : face, x1 = s>0 ? face : face+th;
+    let cur = 0;
+    openings.sort((a,b)=>a.z0-b.z0).forEach(o => {
+      if (o.z0 > cur) box(x0,x1, 0,CEIL_H, cur,o.z0, WALLM);
+      box(x0,x1, 0,o.y0, o.z0,o.z1, WALLM);
+      box(x0,x1, o.y1,CEIL_H, o.z0,o.z1, WALLM);
+      cur = o.z1;
+    });
+    if (cur < ROOM_H) box(x0,x1, 0,CEIL_H, cur,ROOM_H, WALLM);
+  }
+  // sash hinged at (hx,hz); leaf reaches |w| along +/-Z from the hinge
+  function sash(hx, hz, w, sill, head, closedAng, openAng){
+    const g = new T.Group(); g.position.set(hx, 0, hz);
+    const aw = Math.abs(w), dir = Math.sign(w), midY = (sill+head)/2;
+    const frame = new T.Mesh(new T.BoxGeometry(2, head-sill, aw-0.5), WOOD);
+    frame.position.set(0, midY, dir*aw/2); frame.castShadow = true; g.add(frame);
+    const pane = new T.Mesh(new T.BoxGeometry(0.6, head-sill-4, aw-4), GLASS);
+    pane.position.set(0, midY, dir*aw/2); g.add(pane);
+    g.rotation.y = windowsOpen ? openAng : closedAng;
+    roomGrp.add(g);
+  }
+
+  function buildRoom(){
+    while (roomGrp.children.length) roomGrp.remove(roomGrp.children[0]);
+    // floor with 1-ft grid
+    const fc = document.createElement('canvas'); fc.width = ROOM_W*3; fc.height = ROOM_H*3;
+    const fx = fc.getContext('2d');
+    fx.fillStyle = '#E6E0D2'; fx.fillRect(0,0,fc.width,fc.height);
+    fx.strokeStyle = '#CFC6B2'; fx.lineWidth = 1;
+    for (let i=0;i<=ROOM_W;i+=12){ fx.beginPath(); fx.moveTo(i*3+.5,0); fx.lineTo(i*3+.5,fc.height); fx.stroke(); }
+    for (let j=0;j<=ROOM_H;j+=12){ fx.beginPath(); fx.moveTo(0,j*3+.5); fx.lineTo(fc.width,j*3+.5); fx.stroke(); }
+    const floor = new T.Mesh(new T.PlaneGeometry(ROOM_W,ROOM_H),
+      new T.MeshLambertMaterial({map:new T.CanvasTexture(fc)}));
+    floor.rotation.x = -Math.PI/2; floor.position.set(ROOM_W/2, 0, ROOM_H/2);
+    floor.receiveShadow = true; roomGrp.add(floor);
+    const ceil = new T.Mesh(new T.PlaneGeometry(ROOM_W,ROOM_H), new T.MeshLambertMaterial({color:0xEFF2F6}));
+    ceil.rotation.x = Math.PI/2; ceil.position.set(ROOM_W/2, CEIL_H, ROOM_H/2); roomGrp.add(ceil);
+
+    const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
+    wallZ(0, 1, [
+      {z0:doorY, z1:doorY+DOOR_W, y0:0, y1:DOOR_H},
+      {z0:wt, z1:wt+24, y0:WIN_SILL, y1:WIN_HEAD},
+    ]);
+    wallZ(ROOM_W, -1, [{z0:9, z1:135, y0:WIN_SILL, y1:WIN_HEAD}]);
+    box(0,ROOM_W, 0,CEIL_H, -4,0, WALLM);          // top wall
+    box(0,ROOM_W, 0,CEIL_H, ROOM_H,ROOM_H+4, WALLM); // bottom wall
+
+    // door leaf, hinged at (0, doorY), swings into room when open
+    const leaf = new T.Group(); leaf.position.set(0, 0, doorY);
+    const panel = new T.Mesh(new T.BoxGeometry(1.5, DOOR_H-1, DOOR_W-1), WOOD);
+    panel.position.set(0, DOOR_H/2, DOOR_W/2); panel.castShadow = true;
+    leaf.add(panel); leaf.rotation.y = doorOpen ? Math.PI/2 : 0; roomGrp.add(leaf);
+
+    // window sashes: pairs meeting in the middle, 2" post between pairs
+    for (const sp of windowSpecs()){
+      const face = sp.wall === 'L' ? 0 : ROOM_W, into = sp.wall === 'L' ? 1 : -1;
+      const len = sp.a1 - sp.a0, pairW = (len - (sp.pairs-1)*WIN_POST)/sp.pairs, sw = pairW/2;
+      for (let i=0;i<sp.pairs;i++){
+        const p0 = sp.a0 + i*(pairW+WIN_POST), OA = Math.PI*0.42;
+        sash(face, p0,        sw, WIN_SILL, WIN_HEAD, 0, into>0 ?  OA : -OA);
+        sash(face, p0+pairW, -sw, WIN_SILL, WIN_HEAD, 0, into>0 ? -OA :  OA);
+        if (i < sp.pairs-1)
+          box(into>0 ? face-4 : face, into>0 ? face : face+4, WIN_SILL,WIN_HEAD, p0+pairW,p0+pairW+WIN_POST, WOOD);
+      }
+    }
+  }
+
+  function buildFurniture(){
+    while (furnGrp.children.length) furnGrp.remove(furnGrp.children[0]);
+    DEFS.forEach(d => {
+      const s = state[d.id]; if (!s.on) return;
+      const m = s.rot % 180 === 0 ? {w:d.w, h:d.d} : {w:d.d, h:d.w};
+      const geo = d.id === 'table'
+        ? new T.CylinderGeometry(m.w/2, m.w/2, d.tall, 28)
+        : new T.BoxGeometry(m.w, d.tall, m.h);
+      const mesh = new T.Mesh(geo, new T.MeshLambertMaterial({color:d.body}));
+      mesh.position.set(s.x + m.w/2, d.tall/2, s.y + m.h/2);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      furnGrp.add(mesh);
+    });
+  }
+
+  // nudge a standpoint toward room centre until it clears the furniture
+  function clearSpot(x, z){
+    const cx = ROOM_W/2, cz = ROOM_H/2;
+    for (let n=0;n<40;n++){
+      let bad = false;
+      for (const d of DEFS){
+        const s = state[d.id]; if (!s.on) continue;
+        const m = s.rot%180===0 ? {w:d.w,h:d.d} : {w:d.d,h:d.w}, pad = 16;
+        if (x > s.x-pad && x < s.x+m.w+pad && z > s.y-pad && z < s.y+m.h+pad){ bad = true; break; }
+      }
+      if (!bad) break;
+      const dx = cx-x, dz = cz-z, L = Math.hypot(dx,dz) || 1;
+      x += dx/L*6; z += dz/L*6;
+    }
+    return [x, z];
+  }
+  function stand(i){
+    const p = points()[i];
+    const [cx, cz] = clearSpot(p.cx, p.cy);
+    camera.position.set(cx, EYE_H, cz);
+    camera.lookAt(ROOM_W/2, EYE_H-6, ROOM_H/2);
+    yaw = camera.rotation.y; pitch = camera.rotation.x;
+    draw();
+  }
+  function fit(){
+    const w = room.clientWidth, h = room.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  function draw(){ if (ready && active >= 0) renderer.render(scene, camera); }
+
+  function select(i){
+    if (!ok){ warnEl.textContent = '3D view unavailable here'; return; }
+    if (active === i){ close(); return; }
+    if (!ready) initGL();
+    active = i;
+    buildRoom(); buildFurniture(); fit();
+    canvas.classList.add('on');
+    markers.forEach((m,k) => m.classList.toggle('on', k === i));
+    stand(i);
+  }
+  function close(){
+    active = -1; canvas.classList.remove('on');
+    markers.forEach(m => m.classList.remove('on'));
+  }
+
+  function layout(){
+    for (const p of points().map((p,i)=>({p,m:markers[i]}))){
+      p.m.style.left = p.p.mx*scale + 'px';
+      p.m.style.top  = p.p.my*scale + 'px';
+    }
+    if (active >= 0 && ready){ fit(); stand(active); }
+  }
+  // reflect live edits
+  function refresh(){ if (active >= 0 && ready){ buildRoom(); buildFurniture(); draw(); } }
+
+  return { select, close, layout, refresh, get active(){ return active; } };
+})();
+
 const area = document.querySelector('.canvas-area');
 function resize(){
   const availW = Math.max(area.clientWidth - 100, 240);
@@ -628,6 +879,7 @@ function resize(){
   room.style.width = ROOM_W*scale+'px';
   room.style.height = ROOM_H*scale+'px';
   render();
+  V3.layout();
 }
 new ResizeObserver(resize).observe(area);
 addEventListener('resize', resize);
