@@ -658,20 +658,21 @@ const V3 = (() => {
   const povLayer = document.createElement('div'); povLayer.className = 'povs';
   room.appendChild(canvas); room.appendChild(povLayer);
 
-  // 9 standpoints: [label, plan x, plan y] — marker on the wall, camera inset.
+  // 9 standpoints: marker at (mx,my) on the wall; camera at (cx,cy) looking
+  // across the room toward (lx,ly).
   function points(){
-    const W = ROOM_W, H = ROOM_H, e = 28, c = 38;
+    const W = ROOM_W, H = ROOM_H, e = 18, c = 24;
     return [
-      ['Door', 0, doorY + DOOR_W/2,  e, doorY + DOOR_W/2],
-      ['Left wall', 0, H/2,          e, H/2],
-      ['Right wall', W, H/2,         W-e, H/2],
-      ['Top wall', W/2, 0,           W/2, e],
-      ['Bottom wall', W/2, H,        W/2, H-e],
-      ['Top-left corner', 0, 0,      c, c],
-      ['Top-right corner', W, 0,     W-c, c],
-      ['Bottom-left corner', 0, H,   c, H-c],
-      ['Bottom-right corner', W, H,  W-c, H-c],
-    ].map(([label,mx,my,cx,cy]) => ({label,mx,my,cx,cy}));
+      ['Door',                0, doorY+DOOR_W/2,  e, doorY+DOOR_W/2,  W, doorY+DOOR_W/2],
+      ['Left wall',           0, H/2,             e, H/2,             W, H/2],
+      ['Right wall',          W, H/2,             W-e, H/2,           0, H/2],
+      ['Top wall',            W/2, 0,             W/2, e,             W/2, H],
+      ['Bottom wall',         W/2, H,             W/2, H-e,          W/2, 0],
+      ['Top-left corner',     0, 0,               c, c,              W, H],
+      ['Top-right corner',    W, 0,               W-c, c,            0, H],
+      ['Bottom-left corner',  0, H,               c, H-c,            W, 0],
+      ['Bottom-right corner', W, H,               W-c, H-c,          0, 0],
+    ].map(([label,mx,my,cx,cy,lx,ly]) => ({label,mx,my,cx,cy,lx,ly}));
   }
 
   const markers = points().map((p,i) => {
@@ -695,7 +696,7 @@ const V3 = (() => {
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.setClearColor(0xE9EDF3);
     scene = new T.Scene();
-    camera = new T.PerspectiveCamera(66, 1, 1, 3000);
+    camera = new T.PerspectiveCamera(54, 1, 4, 3000);
     camera.rotation.order = 'YXZ';
     scene.add(new T.HemisphereLight(0xffffff, 0x9aa2ae, 0.62));
     const dl = new T.DirectionalLight(0xffffff, 0.42);
@@ -812,34 +813,44 @@ const V3 = (() => {
     });
   }
 
-  // nudge a standpoint toward room centre until it clears the furniture
+  // if a standpoint lands inside a piece (or the open door), step out the short way
   function clearSpot(x, z){
-    const cx = ROOM_W/2, cz = ROOM_H/2;
-    for (let n=0;n<40;n++){
-      let bad = false;
-      for (const d of DEFS){
-        const s = state[d.id]; if (!s.on) continue;
-        const m = s.rot%180===0 ? {w:d.w,h:d.d} : {w:d.d,h:d.w}, pad = 16;
-        if (x > s.x-pad && x < s.x+m.w+pad && z > s.y-pad && z < s.y+m.h+pad){ bad = true; break; }
+    const blocks = DEFS.filter(d => state[d.id].on).map(d => {
+      const s = state[d.id], m = s.rot%180===0 ? {w:d.w,h:d.d} : {w:d.d,h:d.w};
+      return {x0:s.x, x1:s.x+m.w, z0:s.y, z1:s.y+m.h};
+    });
+    if (doorOpen) blocks.push({x0:-14, x1:DOOR_W+8, z0:doorY-16, z1:doorY+DOOR_W+6});
+    for (let n=0;n<10;n++){
+      let moved = false;
+      for (const b of blocks){
+        if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1){
+          const dl = x-b.x0, dr = b.x1-x, du = z-b.z0, dd = b.z1-z;
+          const mn = Math.min(dl,dr,du,dd);
+          if (mn===dl) x = b.x0-8; else if (mn===dr) x = b.x1+8;
+          else if (mn===du) z = b.z0-8; else z = b.z1+8;
+          moved = true;
+        }
       }
-      if (!bad) break;
-      const dx = cx-x, dz = cz-z, L = Math.hypot(dx,dz) || 1;
-      x += dx/L*6; z += dz/L*6;
+      if (!moved) break;
     }
-    return [x, z];
+    return [Math.max(8, Math.min(ROOM_W-8, x)), Math.max(8, Math.min(ROOM_H-8, z))];
   }
   function stand(i){
     const p = points()[i];
     const [cx, cz] = clearSpot(p.cx, p.cy);
     camera.position.set(cx, EYE_H, cz);
-    camera.lookAt(ROOM_W/2, EYE_H-6, ROOM_H/2);
+    // look level across the room toward the far side; near furniture sits low in view
+    camera.lookAt(p.lx, EYE_H - 3, p.ly);
     yaw = camera.rotation.y; pitch = camera.rotation.x;
     draw();
   }
   function fit(){
     const w = room.clientWidth, h = room.clientHeight;
     renderer.setSize(w, h, false);
-    camera.aspect = w/h; camera.updateProjectionMatrix();
+    camera.aspect = w/h;
+    // keep a comfortable view: widen only if the viewport is portrait
+    camera.fov = camera.aspect >= 1 ? 54 : Math.min(90, 54 / camera.aspect);
+    camera.updateProjectionMatrix();
   }
   function draw(){ if (ready && active >= 0) renderer.render(scene, camera); }
 
@@ -873,8 +884,8 @@ const V3 = (() => {
 
 const area = document.querySelector('.canvas-area');
 function resize(){
-  const availW = Math.max(area.clientWidth - 100, 240);
-  const availH = Math.max(area.clientHeight - 100, 210);
+  const availW = Math.max(area.clientWidth - 40, 240);
+  const availH = Math.max(area.clientHeight - 40, 210);
   scale = Math.min(availW/ROOM_W, availH/ROOM_H);
   room.style.width = ROOM_W*scale+'px';
   room.style.height = ROOM_H*scale+'px';
