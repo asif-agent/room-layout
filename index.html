@@ -658,21 +658,22 @@ const V3 = (() => {
   const povLayer = document.createElement('div'); povLayer.className = 'povs';
   room.appendChild(canvas); room.appendChild(povLayer);
 
-  // 9 standpoints: marker at (mx,my) on the wall; camera at (cx,cy) looking
-  // across the room toward (lx,ly).
+  // 9 viewpoints. Marker sits on the wall at (mx,my); the camera sits just
+  // OUTSIDE the room at (cx,cy) and the wall(s) it looks through are hidden,
+  // so you see the whole room like a cut-away model.
   function points(){
-    const W = ROOM_W, H = ROOM_H, e = 18, c = 24;
+    const W = ROOM_W, H = ROOM_H, O = 40, d = 32;
     return [
-      ['Door',                0, doorY+DOOR_W/2,  e, doorY+DOOR_W/2,  W, doorY+DOOR_W/2],
-      ['Left wall',           0, H/2,             e, H/2,             W, H/2],
-      ['Right wall',          W, H/2,             W-e, H/2,           0, H/2],
-      ['Top wall',            W/2, 0,             W/2, e,             W/2, H],
-      ['Bottom wall',         W/2, H,             W/2, H-e,          W/2, 0],
-      ['Top-left corner',     0, 0,               c, c,              W, H],
-      ['Top-right corner',    W, 0,               W-c, c,            0, H],
-      ['Bottom-left corner',  0, H,               c, H-c,            W, 0],
-      ['Bottom-right corner', W, H,               W-c, H-c,          0, 0],
-    ].map(([label,mx,my,cx,cy,lx,ly]) => ({label,mx,my,cx,cy,lx,ly}));
+      ['Door',                0, doorY+DOOR_W/2,  -O, doorY+DOOR_W/2,  108, ['L']],
+      ['Left wall',           0, H/2,             -O, H/2,             118, ['L']],
+      ['Right wall',          W, H/2,             W+O, H/2,            118, ['R']],
+      ['Top wall',            W/2, 0,             W/2, -O,             118, ['T']],
+      ['Bottom wall',         W/2, H,             W/2, H+O,            118, ['B']],
+      ['Top-left corner',     0, 0,               -d, -d,             134, ['L','T']],
+      ['Top-right corner',    W, 0,               W+d, -d,            134, ['R','T']],
+      ['Bottom-left corner',  0, H,               -d, H+d,            134, ['L','B']],
+      ['Bottom-right corner', W, H,               W+d, H+d,           134, ['R','B']],
+    ].map(([label,mx,my,cx,cy,cyH,hide]) => ({label,mx,my,cx,cy,cyH,hide}));
   }
 
   const markers = points().map((p,i) => {
@@ -696,10 +697,10 @@ const V3 = (() => {
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.setClearColor(0xE9EDF3);
     scene = new T.Scene();
-    camera = new T.PerspectiveCamera(54, 1, 4, 3000);
+    camera = new T.PerspectiveCamera(80, 1, 4, 3000);
     camera.rotation.order = 'YXZ';
-    scene.add(new T.HemisphereLight(0xffffff, 0x9aa2ae, 0.62));
-    const dl = new T.DirectionalLight(0xffffff, 0.42);
+    scene.add(new T.HemisphereLight(0xffffff, 0xc2c7d0, 0.95));
+    const dl = new T.DirectionalLight(0xffffff, 0.28);
     dl.position.set(ROOM_W*0.3, 300, ROOM_H*0.35); dl.castShadow = true;
     dl.shadow.mapSize.set(1024,1024);
     Object.assign(dl.shadow.camera, {left:-ROOM_W, right:ROOM_W, top:ROOM_H, bottom:-ROOM_H, near:1, far:900});
@@ -723,23 +724,25 @@ const V3 = (() => {
     ready = true;
   }
 
-  function box(x0,x1,y0,y1,z0,z1,mat){
+  const wallMeshes = {L:[], R:[], T:[], B:[]};
+  function box(x0,x1,y0,y1,z0,z1,mat,tag){
     const m = new T.Mesh(new T.BoxGeometry(x1-x0, y1-y0, z1-z0), mat);
     m.position.set((x0+x1)/2, (y0+y1)/2, (z0+z1)/2);
     m.castShadow = true; m.receiveShadow = true; roomGrp.add(m);
+    if (tag) wallMeshes[tag].push(m);
     return m;
   }
   // wall along the Z axis (left/right walls). face = inner-face x; s = +1 solid toward -x, -1 toward +x
-  function wallZ(face, s, openings){
+  function wallZ(face, s, openings, tag){
     const th = 4, x0 = s>0 ? face-th : face, x1 = s>0 ? face : face+th;
     let cur = 0;
     openings.sort((a,b)=>a.z0-b.z0).forEach(o => {
-      if (o.z0 > cur) box(x0,x1, 0,CEIL_H, cur,o.z0, WALLM);
-      box(x0,x1, 0,o.y0, o.z0,o.z1, WALLM);
-      box(x0,x1, o.y1,CEIL_H, o.z0,o.z1, WALLM);
+      if (o.z0 > cur) box(x0,x1, 0,CEIL_H, cur,o.z0, WALLM, tag);
+      box(x0,x1, 0,o.y0, o.z0,o.z1, WALLM, tag);
+      box(x0,x1, o.y1,CEIL_H, o.z0,o.z1, WALLM, tag);
       cur = o.z1;
     });
-    if (cur < ROOM_H) box(x0,x1, 0,CEIL_H, cur,ROOM_H, WALLM);
+    if (cur < ROOM_H) box(x0,x1, 0,CEIL_H, cur,ROOM_H, WALLM, tag);
   }
   // sash hinged at (hx,hz); leaf reaches |w| along +/-Z from the hinge
   function sash(hx, hz, w, sill, head, closedAng, openAng){
@@ -751,10 +754,12 @@ const V3 = (() => {
     pane.position.set(0, midY, dir*aw/2); g.add(pane);
     g.rotation.y = windowsOpen ? openAng : closedAng;
     roomGrp.add(g);
+    return g;
   }
 
   function buildRoom(){
     while (roomGrp.children.length) roomGrp.remove(roomGrp.children[0]);
+    for (const k in wallMeshes) wallMeshes[k].length = 0;
     // floor with 1-ft grid
     const fc = document.createElement('canvas'); fc.width = ROOM_W*3; fc.height = ROOM_H*3;
     const fx = fc.getContext('2d');
@@ -766,23 +771,25 @@ const V3 = (() => {
       new T.MeshLambertMaterial({map:new T.CanvasTexture(fc)}));
     floor.rotation.x = -Math.PI/2; floor.position.set(ROOM_W/2, 0, ROOM_H/2);
     floor.receiveShadow = true; roomGrp.add(floor);
-    const ceil = new T.Mesh(new T.PlaneGeometry(ROOM_W,ROOM_H), new T.MeshLambertMaterial({color:0xEFF2F6}));
-    ceil.rotation.x = Math.PI/2; ceil.position.set(ROOM_W/2, CEIL_H, ROOM_H/2); roomGrp.add(ceil);
+    const ceil = new T.Mesh(new T.PlaneGeometry(ROOM_W,ROOM_H), new T.MeshBasicMaterial({color:0xF3F5F8}));
+    ceil.rotation.x = Math.PI/2; ceil.position.set(ROOM_W/2, CEIL_H, ROOM_H/2);
+    ceil.visible = false; roomGrp.add(ceil);   // hidden — this is a cut-away view
 
     const wt = Math.min(doorY+DOOR_W, ROOM_H-24);
     wallZ(0, 1, [
       {z0:doorY, z1:doorY+DOOR_W, y0:0, y1:DOOR_H},
       {z0:wt, z1:wt+24, y0:WIN_SILL, y1:WIN_HEAD},
-    ]);
-    wallZ(ROOM_W, -1, [{z0:9, z1:135, y0:WIN_SILL, y1:WIN_HEAD}]);
-    box(0,ROOM_W, 0,CEIL_H, -4,0, WALLM);          // top wall
-    box(0,ROOM_W, 0,CEIL_H, ROOM_H,ROOM_H+4, WALLM); // bottom wall
+    ], 'L');
+    wallZ(ROOM_W, -1, [{z0:9, z1:135, y0:WIN_SILL, y1:WIN_HEAD}], 'R');
+    box(0,ROOM_W, 0,CEIL_H, -4,0, WALLM, 'T');          // top wall
+    box(0,ROOM_W, 0,CEIL_H, ROOM_H,ROOM_H+4, WALLM, 'B'); // bottom wall
 
     // door leaf, hinged at (0, doorY), swings into room when open
     const leaf = new T.Group(); leaf.position.set(0, 0, doorY);
     const panel = new T.Mesh(new T.BoxGeometry(1.5, DOOR_H-1, DOOR_W-1), WOOD);
     panel.position.set(0, DOOR_H/2, DOOR_W/2); panel.castShadow = true;
-    leaf.add(panel); leaf.rotation.y = doorOpen ? Math.PI/2 : 0; roomGrp.add(leaf);
+    leaf.add(panel); leaf.rotation.y = doorOpen ? Math.PI/2 : 0;
+    roomGrp.add(leaf); wallMeshes.L.push(leaf);
 
     // window sashes: pairs meeting in the middle, 2" post between pairs
     for (const sp of windowSpecs()){
@@ -790,10 +797,12 @@ const V3 = (() => {
       const len = sp.a1 - sp.a0, pairW = (len - (sp.pairs-1)*WIN_POST)/sp.pairs, sw = pairW/2;
       for (let i=0;i<sp.pairs;i++){
         const p0 = sp.a0 + i*(pairW+WIN_POST), OA = Math.PI*0.42;
-        sash(face, p0,        sw, WIN_SILL, WIN_HEAD, 0, into>0 ?  OA : -OA);
-        sash(face, p0+pairW, -sw, WIN_SILL, WIN_HEAD, 0, into>0 ? -OA :  OA);
+        wallMeshes[sp.wall].push(
+          sash(face, p0,        sw, WIN_SILL, WIN_HEAD, 0, into>0 ?  OA : -OA),
+          sash(face, p0+pairW, -sw, WIN_SILL, WIN_HEAD, 0, into>0 ? -OA :  OA));
         if (i < sp.pairs-1)
-          box(into>0 ? face-4 : face, into>0 ? face : face+4, WIN_SILL,WIN_HEAD, p0+pairW,p0+pairW+WIN_POST, WOOD);
+          wallMeshes[sp.wall].push(
+            box(into>0 ? face-4 : face, into>0 ? face : face+4, WIN_SILL,WIN_HEAD, p0+pairW,p0+pairW+WIN_POST, WOOD));
       }
     }
   }
@@ -813,43 +822,24 @@ const V3 = (() => {
     });
   }
 
-  // if a standpoint lands inside a piece (or the open door), step out the short way
-  function clearSpot(x, z){
-    const blocks = DEFS.filter(d => state[d.id].on).map(d => {
-      const s = state[d.id], m = s.rot%180===0 ? {w:d.w,h:d.d} : {w:d.d,h:d.w};
-      return {x0:s.x, x1:s.x+m.w, z0:s.y, z1:s.y+m.h};
-    });
-    if (doorOpen) blocks.push({x0:-14, x1:DOOR_W+8, z0:doorY-16, z1:doorY+DOOR_W+6});
-    for (let n=0;n<10;n++){
-      let moved = false;
-      for (const b of blocks){
-        if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1){
-          const dl = x-b.x0, dr = b.x1-x, du = z-b.z0, dd = b.z1-z;
-          const mn = Math.min(dl,dr,du,dd);
-          if (mn===dl) x = b.x0-8; else if (mn===dr) x = b.x1+8;
-          else if (mn===du) z = b.z0-8; else z = b.z1+8;
-          moved = true;
-        }
-      }
-      if (!moved) break;
-    }
-    return [Math.max(8, Math.min(ROOM_W-8, x)), Math.max(8, Math.min(ROOM_H-8, z))];
+  function hideWalls(){
+    if (active < 0) return;
+    const hide = points()[active].hide;
+    for (const k in wallMeshes) wallMeshes[k].forEach(m => m.visible = !hide.includes(k));
   }
   function stand(i){
     const p = points()[i];
-    const [cx, cz] = clearSpot(p.cx, p.cy);
-    camera.position.set(cx, EYE_H, cz);
-    // look level across the room toward the far side; near furniture sits low in view
-    camera.lookAt(p.lx, EYE_H - 3, p.ly);
+    camera.position.set(p.cx, p.cyH, p.cy);
+    camera.lookAt(ROOM_W/2, 8, ROOM_H/2);   // look down into the room from outside that corner
     yaw = camera.rotation.y; pitch = camera.rotation.x;
+    hideWalls();
     draw();
   }
   function fit(){
     const w = room.clientWidth, h = room.clientHeight;
     renderer.setSize(w, h, false);
     camera.aspect = w/h;
-    // keep a comfortable view: widen only if the viewport is portrait
-    camera.fov = camera.aspect >= 1 ? 54 : Math.min(90, 54 / camera.aspect);
+    camera.fov = camera.aspect >= 1 ? 72 : Math.min(100, 72 / camera.aspect);
     camera.updateProjectionMatrix();
   }
   function draw(){ if (ready && active >= 0) renderer.render(scene, camera); }
@@ -877,7 +867,7 @@ const V3 = (() => {
     if (active >= 0 && ready){ fit(); stand(active); }
   }
   // reflect live edits
-  function refresh(){ if (active >= 0 && ready){ buildRoom(); buildFurniture(); draw(); } }
+  function refresh(){ if (active >= 0 && ready){ buildRoom(); buildFurniture(); hideWalls(); draw(); } }
 
   return { select, close, layout, refresh, get active(){ return active; } };
 })();
